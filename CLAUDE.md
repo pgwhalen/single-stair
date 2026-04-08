@@ -18,12 +18,19 @@ source .venv/bin/activate
 - **load_data.py** — Reads `Boundaries_-_Zoning_Districts_(current)_20260407.csv` (Chicago open data), parses WKT geometries, and loads into PostGIS table `zoning_districts`.
 - **visualize.py** — Queries PostGIS, classifies zones by single-stair benefit tier, outputs `single_stair_map.html` (interactive Folium map).
 
-## Target Zone Classes
+## Target Zone Classes (per STC feedback)
 
-**High benefit** (red): B1-3, C1-2, RM-5
-**Medium benefit** (orange): Business/commercial zones with -3 or -5 suffix — B1-5, B2-3, B2-5, B3-3, B3-5, C1-3, C1-5, C2-3, C2-5, C3-3, C3-5
+**Fully residential** (green tones):
+- 7 du/lot: RM-5, RM-5.5, B2-3
+- 10 du/lot: RM-6, RM-6.5
+- 15 du/lot: B2-5
 
-Rationale: These zones allow new mixed-use or residential construction on smaller lots (often vacant lots next to existing stores). Single-stair designs unlock feasible development on parcels that would otherwise be too narrow for double-stair buildings.
+**Ground-floor commercial required** (blue tones):
+- 7 du/lot: B1-3, B3-3, C1-3, C2-3
+- 15 du/lot: B1-5, B3-5, C1-5, C2-5
+
+C1-2 excluded: high FAR but low density caps make it poor for single-stair.
+dupsl = dwelling units per standard lot.
 
 ## Dependencies
 
