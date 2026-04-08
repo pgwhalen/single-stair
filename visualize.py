@@ -57,7 +57,8 @@ def main():
     print("Loading from PostGIS...")
     engine = create_engine(DB_URL)
     gdf = gpd.read_postgis(
-        "SELECT zone_class, geometry FROM zoning_districts", engine, geom_col="geometry"
+        "SELECT zone_class, shape_area, geometry FROM zoning_districts",
+        engine, geom_col="geometry",
     )
     print(f"  {len(gdf)} districts loaded (SRID: {gdf.crs.to_epsg()})")
 
@@ -80,11 +81,23 @@ def main():
     # Add human-readable tier label as a property for tooltips
     gdf_with_ward["tier_label"] = gdf_with_ward["benefit_tier"].map(TIER_LABELS)
 
+    # Clean up shape_area: remove commas, convert to float, then to acres
+    gdf_with_ward["area_sqft"] = (
+        gdf_with_ward["shape_area"]
+        .astype(str)
+        .str.replace(",", "", regex=False)
+        .astype(float)
+    )
+    gdf_with_ward["area_acres"] = (gdf_with_ward["area_sqft"] / 43560).round(2)
+
     print("Building map...")
     m = folium.Map(location=[41.8781, -87.6298], zoom_start=11, tiles="cartodbpositron")
 
     zoning_geojson = json.loads(
-        gdf_with_ward[["zone_class", "benefit_tier", "tier_label", "ward", "geometry"]].to_json()
+        gdf_with_ward[[
+            "zone_class", "benefit_tier", "tier_label", "ward",
+            "area_sqft", "area_acres", "geometry",
+        ]].to_json()
     )
     wards_geojson = json.loads(wards.to_json())
 
@@ -193,6 +206,24 @@ def main():
 
             var tierOrder = {{'other': 0, 'res_7': 1, 'res_10': 2, 'res_15': 3, 'com_7': 4, 'com_15': 5}};
 
+            // Zoning detail lookup for click popups
+            var zoneInfo = {{
+                'RM-5':   {{name: 'Residential Multi-Unit', far: '1.2', height: "50'", dupsl: 7, gfComm: false}},
+                'RM-5.5': {{name: 'Residential Multi-Unit', far: '2.0', height: "58'", dupsl: 7, gfComm: false}},
+                'RM-6':   {{name: 'Residential Multi-Unit', far: '2.2', height: "65'", dupsl: 10, gfComm: false}},
+                'RM-6.5': {{name: 'Residential Multi-Unit', far: '4.4', height: "70'", dupsl: 10, gfComm: false}},
+                'B2-3':   {{name: 'Neighborhood Mixed-Use', far: '1.2', height: "50'", dupsl: 7, gfComm: false}},
+                'B2-5':   {{name: 'Neighborhood Mixed-Use', far: '2.0', height: "65'", dupsl: 15, gfComm: false}},
+                'B1-3':   {{name: 'Neighborhood Shopping', far: '1.2', height: "50'", dupsl: 7, gfComm: true}},
+                'B1-5':   {{name: 'Neighborhood Shopping', far: '2.0', height: "65'", dupsl: 15, gfComm: true}},
+                'B3-3':   {{name: 'Community Shopping', far: '1.2', height: "50'", dupsl: 7, gfComm: true}},
+                'B3-5':   {{name: 'Community Shopping', far: '2.0', height: "65'", dupsl: 15, gfComm: true}},
+                'C1-3':   {{name: 'Neighborhood Commercial', far: '1.2', height: "50'", dupsl: 7, gfComm: true}},
+                'C1-5':   {{name: 'Neighborhood Commercial', far: '2.0', height: "65'", dupsl: 15, gfComm: true}},
+                'C2-3':   {{name: 'Motor Vehicle-Related Commercial', far: '1.2', height: "50'", dupsl: 7, gfComm: true}},
+                'C2-5':   {{name: 'Motor Vehicle-Related Commercial', far: '2.0', height: "65'", dupsl: 15, gfComm: true}}
+            }};
+
             var wardStyle = {{fillOpacity: 0, color: '#264653', weight: 1.5, dashArray: '5 3'}};
             var wardHighlightStyle = {{fillOpacity: 0.05, fillColor: '#264653', color: '#264653', weight: 2.5, dashArray: null}};
 
@@ -201,6 +232,37 @@ def main():
 
             function styleZoning(feature) {{
                 return tierStyles[feature.properties.benefit_tier] || tierStyles['other'];
+            }}
+
+            function formatNumber(n) {{
+                return n ? n.toLocaleString() : '—';
+            }}
+
+            function buildPopup(p) {{
+                var zi = zoneInfo[p.zone_class];
+                var html = '<div style="font-family:sans-serif;font-size:13px;line-height:1.5;min-width:220px;">';
+                html += '<div style="font-size:16px;font-weight:bold;margin-bottom:4px;">' + p.zone_class + '</div>';
+
+                if (zi) {{
+                    html += '<div style="color:#555;margin-bottom:8px;">' + zi.name + '</div>';
+                    html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+                    html += '<tr><td style="padding:2px 8px 2px 0;color:#777;">Density</td><td><b>' + zi.dupsl + '</b> units/standard lot</td></tr>';
+                    html += '<tr><td style="padding:2px 8px 2px 0;color:#777;">Max FAR</td><td>' + zi.far + '</td></tr>';
+                    html += '<tr><td style="padding:2px 8px 2px 0;color:#777;">Max Height</td><td>' + zi.height + '</td></tr>';
+                    html += '<tr><td style="padding:2px 8px 2px 0;color:#777;">Ground Floor</td><td>' +
+                        (zi.gfComm ? '<span style="color:#1565c0;">Commercial required</span>' : '<span style="color:#2e7d32;">Residential OK</span>') + '</td></tr>';
+                    html += '</table>';
+                }} else {{
+                    html += '<div style="color:#999;margin-bottom:8px;">Not in single-stair benefit area</div>';
+                }}
+
+                html += '<hr style="margin:8px 0;border:none;border-top:1px solid #eee;">';
+                html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+                html += '<tr><td style="padding:2px 8px 2px 0;color:#777;">District Area</td><td>' + formatNumber(Math.round(p.area_sqft)) + ' sq ft (' + p.area_acres + ' ac)</td></tr>';
+                html += '<tr><td style="padding:2px 8px 2px 0;color:#777;">Ward</td><td>' + p.ward + '</td></tr>';
+                html += '</table>';
+                html += '</div>';
+                return html;
             }}
 
             function renderLayers(selectedWard) {{
@@ -226,10 +288,10 @@ def main():
                     style: styleZoning,
                     onEachFeature: function(feature, layer) {{
                         var p = feature.properties;
-                        var tip = '<b>' + p.zone_class + '</b>' +
-                                  '<br>' + p.tier_label +
-                                  '<br>Ward ' + p.ward;
-                        layer.bindTooltip(tip);
+                        // Lightweight hover tooltip
+                        layer.bindTooltip('<b>' + p.zone_class + '</b> — ' + p.tier_label);
+                        // Rich click popup
+                        layer.bindPopup(buildPopup(p), {{maxWidth: 300}});
                     }}
                 }}).addTo(map);
 
