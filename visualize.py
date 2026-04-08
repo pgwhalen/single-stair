@@ -9,21 +9,20 @@ from sqlalchemy import create_engine
 DB_URL = "postgresql://pgwhalen@localhost:5432/urbanism"
 WARDS_GEOJSON = "Boundaries_-_Wards_(2023-)_20260407.geojson"
 
-# Zones explicitly called out as high-benefit for single stair
-HIGH_BENEFIT = {"B1-3", "C1-2", "RM-5"}
-
-# Business/commercial zones with -3 or -5 suffix (medium benefit)
-MEDIUM_BENEFIT = {
-    "B1-5", "B2-3", "B2-5", "B3-3", "B3-5",
-    "C1-3", "C1-5", "C2-3", "C2-5", "C3-3", "C3-5",
+# Zones that benefit from single-stair ordinance:
+# - Business (B) and Commercial (C) zones with -3 or -5 density suffix
+# - RM-5 (residential multi-unit)
+# - C1-2 (neighborhood commercial, lower density but explicitly included)
+SINGLE_STAIR_BENEFIT = {
+    "B1-3", "B1-5", "B2-3", "B2-5", "B3-3", "B3-5",
+    "C1-2", "C1-3", "C1-5", "C2-3", "C2-5", "C3-3", "C3-5",
+    "RM-5",
 }
 
 
 def classify(zone_class):
-    if zone_class in HIGH_BENEFIT:
-        return "high"
-    elif zone_class in MEDIUM_BENEFIT:
-        return "medium"
+    if zone_class in SINGLE_STAIR_BENEFIT:
+        return "benefit"
     return "other"
 
 
@@ -110,8 +109,7 @@ def main():
 
     <div id="legend">
         <b>Single Stair Benefit</b><br>
-        <span style="color: #e63946;">&#9632;</span> High — B1-3, C1-2, RM-5<br>
-        <span style="color: #f4a261;">&#9632;</span> Medium — B/C zones with -3, -5<br>
+        <span style="color: #e63946;">&#9632;</span> Eligible — B/C with -3 or -5, C1-2, RM-5<br>
         <span style="color: #d3d3d3;">&#9632;</span> Other zoning<br>
         <span style="color: #264653;">- -</span> Ward boundaries
     </div>
@@ -138,9 +136,8 @@ def main():
             var wardsData = {json.dumps(wards_geojson)};
 
             var tierStyles = {{
-                'high':  {{fillColor: '#e63946', color: '#e63946', weight: 0.5, fillOpacity: 0.6}},
-                'medium': {{fillColor: '#f4a261', color: '#f4a261', weight: 0.5, fillOpacity: 0.5}},
-                'other': {{fillColor: '#d3d3d3', color: '#aaaaaa', weight: 0.2, fillOpacity: 0.15}}
+                'benefit': {{fillColor: '#e63946', color: '#e63946', weight: 0.5, fillOpacity: 0.6}},
+                'other':   {{fillColor: '#d3d3d3', color: '#aaaaaa', weight: 0.2, fillOpacity: 0.15}}
             }};
 
             var wardStyle = {{fillOpacity: 0, color: '#264653', weight: 1.5, dashArray: '5 3'}};
@@ -167,11 +164,11 @@ def main():
                     }});
                 }}
 
-                // Sort: other first, then medium, then high
-                var tierOrder = {{'other': 0, 'medium': 1, 'high': 2}};
+                // Sort: other first, then benefit on top
                 filteredZoning.features.sort(function(a, b) {{
-                    return (tierOrder[a.properties.benefit_tier] || 0) -
-                           (tierOrder[b.properties.benefit_tier] || 0);
+                    var order = {{'other': 0, 'benefit': 1}};
+                    return (order[a.properties.benefit_tier] || 0) -
+                           (order[b.properties.benefit_tier] || 0);
                 }});
 
                 zoningLayer = L.geoJson(filteredZoning, {{
