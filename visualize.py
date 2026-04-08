@@ -5,6 +5,7 @@ import folium
 from sqlalchemy import create_engine
 
 DB_URL = "postgresql://pgwhalen@localhost:5432/urbanism"
+WARDS_GEOJSON = "Boundaries_-_Wards_(2023-)_20260407.geojson"
 
 # Zones explicitly called out as high-benefit for single stair
 HIGH_BENEFIT = {"B1-3", "C1-2", "RM-5"}
@@ -83,6 +84,21 @@ def main():
             tooltip=folium.GeoJsonTooltip(fields=["zone_class", "benefit_tier"], aliases=["Zone:", "Benefit:"]),
         ).add_to(m)
 
+    # Ward boundaries overlay
+    print("Loading ward boundaries...")
+    wards = gpd.read_file(WARDS_GEOJSON)[["ward", "geometry"]]
+    folium.GeoJson(
+        wards,
+        name="Ward Boundaries",
+        style_function=lambda f: {
+            "fillOpacity": 0,
+            "color": "#264653",
+            "weight": 1.5,
+            "dashArray": "5 3",
+        },
+        tooltip=folium.GeoJsonTooltip(fields=["ward"], aliases=["Ward:"]),
+    ).add_to(m)
+
     folium.LayerControl().add_to(m)
 
     # Legend
@@ -93,7 +109,8 @@ def main():
         <b>Single Stair Benefit</b><br>
         <span style="color: #e63946;">&#9632;</span> High — B1-3, C1-2, RM-5<br>
         <span style="color: #f4a261;">&#9632;</span> Medium — B/C zones with -3, -5<br>
-        <span style="color: #d3d3d3;">&#9632;</span> Other zoning
+        <span style="color: #d3d3d3;">&#9632;</span> Other zoning<br>
+        <span style="color: #264653;">- -</span> Ward boundaries
     </div>
     """
     m.get_root().html.add_child(folium.Element(legend_html))
