@@ -295,23 +295,35 @@ def main():
                     }}
                 }}).addTo(map);
 
+                // Ward outlines: non-interactive so zoning tooltips/popups work through them
                 wardsLayer = L.geoJson(wardsData, {{
+                    interactive: false,
                     style: function(feature) {{
                         if (selectedWard !== 'all' && feature.properties.ward === selectedWard) {{
                             return wardHighlightStyle;
                         }}
                         return wardStyle;
-                    }},
+                    }}
+                }}).addTo(map);
+
+                // Separate invisible interactive layer just for ward click-to-filter
+                var wardClickLayer = L.geoJson(wardsData, {{
+                    style: {{fillOpacity: 0, weight: 0, opacity: 0}},
                     onEachFeature: function(feature, layer) {{
-                        layer.bindTooltip('<b>Ward ' + feature.properties.ward + '</b>');
-                        layer.on('click', function() {{
+                        layer.on('click', function(e) {{
+                            // Only use ward-click when not clicking a zoning feature
+                            // (zoning popup will open on its own)
                             var w = feature.properties.ward;
                             var sel = document.getElementById('ward-select');
-                            sel.value = w;
-                            sel.dispatchEvent(new Event('change'));
+                            if (sel.value !== w) {{
+                                sel.value = w;
+                                sel.dispatchEvent(new Event('change'));
+                            }}
                         }});
                     }}
                 }}).addTo(map);
+                // Put ward click layer below zoning so zoning clicks take priority
+                wardClickLayer.bringToBack();
 
                 // Update info
                 var info = document.getElementById('ward-info');
