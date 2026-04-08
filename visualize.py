@@ -9,27 +9,56 @@ from sqlalchemy import create_engine
 DB_URL = "postgresql://pgwhalen@localhost:5432/urbanism"
 WARDS_GEOJSON = "Boundaries_-_Wards_(2023-)_20260407.geojson"
 
-# Zones that benefit from single-stair ordinance:
-# - Business (B) and Commercial (C) zones with -3 or -5 density suffix
-# - RM-5 (residential multi-unit)
-# - C1-2 (neighborhood commercial, lower density but explicitly included)
-SINGLE_STAIR_BENEFIT = {
-    "B1-3", "B1-5", "B2-3", "B2-5", "B3-3", "B3-5",
-    "C1-2", "C1-3", "C1-5", "C2-3", "C2-5", "C3-3", "C3-5",
-    "RM-5",
+# Single-stair benefit tiers, per STC feedback (Alex Montero / Steven):
+#
+# FULLY RESIDENTIAL (green tones):
+#   res_7   — 7 dupsl:  RM-5, RM-5.5, B2-3
+#   res_10  — 10 dupsl: RM-6, RM-6.5
+#   res_15  — 15 dupsl: B2-5
+#
+# GROUND-FLOOR COMMERCIAL REQUIRED (blue tones):
+#   com_7   — 7 dupsl:  B1-3, B3-3, C1-3, C2-3
+#   com_15  — 15 dupsl: B1-5, B3-5, C1-5, C2-5
+
+TIER_MAP = {
+    # Fully residential
+    "RM-5":   "res_7",
+    "RM-5.5": "res_7",
+    "B2-3":   "res_7",
+    "RM-6":   "res_10",
+    "RM-6.5": "res_10",
+    "B2-5":   "res_15",
+    # Ground-floor commercial required
+    "B1-3":   "com_7",
+    "B3-3":   "com_7",
+    "C1-3":   "com_7",
+    "C2-3":   "com_7",
+    "B1-5":   "com_15",
+    "B3-5":   "com_15",
+    "C1-5":   "com_15",
+    "C2-5":   "com_15",
+}
+
+TIER_LABELS = {
+    "res_7":  "Fully residential — 7 du/lot",
+    "res_10": "Fully residential — 10 du/lot",
+    "res_15": "Fully residential — 15 du/lot",
+    "com_7":  "Ground-floor commercial — 7 du/lot",
+    "com_15": "Ground-floor commercial — 15 du/lot",
+    "other":  "Other zoning",
 }
 
 
 def classify(zone_class):
-    if zone_class in SINGLE_STAIR_BENEFIT:
-        return "benefit"
-    return "other"
+    return TIER_MAP.get(zone_class, "other")
 
 
 def main():
     print("Loading from PostGIS...")
     engine = create_engine(DB_URL)
-    gdf = gpd.read_postgis("SELECT zone_class, geometry FROM zoning_districts", engine, geom_col="geometry")
+    gdf = gpd.read_postgis(
+        "SELECT zone_class, geometry FROM zoning_districts", engine, geom_col="geometry"
+    )
     print(f"  {len(gdf)} districts loaded (SRID: {gdf.crs.to_epsg()})")
 
     # Reproject from EPSG:3435 (IL State Plane) to EPSG:4326 (lat/lon) for web map
@@ -42,22 +71,23 @@ def main():
     # Spatial join: assign each zoning district to a ward
     print("Spatial join: zoning districts -> wards...")
     gdf_with_ward = gpd.sjoin(gdf, wards, how="left", predicate="intersects")
-    # Some districts may span ward boundaries; keep the first match
     gdf_with_ward = gdf_with_ward[~gdf_with_ward.index.duplicated(keep="first")]
     gdf_with_ward["ward"] = gdf_with_ward["ward"].fillna("Unknown").astype(str)
-    # Convert ward to int for sorting where possible
     gdf_with_ward["ward_num"] = gdf_with_ward["ward"].apply(
         lambda w: int(w) if w.isdigit() else 999
     )
 
+    # Add human-readable tier label as a property for tooltips
+    gdf_with_ward["tier_label"] = gdf_with_ward["benefit_tier"].map(TIER_LABELS)
+
     print("Building map...")
     m = folium.Map(location=[41.8781, -87.6298], zoom_start=11, tiles="cartodbpositron")
 
-    # Serialize zoning data as a single GeoJSON blob with ward + tier properties
-    zoning_geojson = json.loads(gdf_with_ward[["zone_class", "benefit_tier", "ward", "geometry"]].to_json())
+    zoning_geojson = json.loads(
+        gdf_with_ward[["zone_class", "benefit_tier", "tier_label", "ward", "geometry"]].to_json()
+    )
     wards_geojson = json.loads(wards.to_json())
 
-    # Inject all data and interactivity via custom HTML/JS
     custom_html = f"""
     <style>
         #ward-filter {{
@@ -95,7 +125,18 @@ def main():
             border-radius: 8px;
             box-shadow: 0 2px 6px rgba(0,0,0,0.3);
             font-family: sans-serif;
-            font-size: 13px;
+            font-size: 12px;
+            line-height: 1.7;
+            max-width: 310px;
+        }}
+        #legend .section-label {{
+            font-weight: bold;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #555;
+            margin-top: 6px;
+            margin-bottom: 2px;
         }}
     </style>
 
@@ -108,22 +149,28 @@ def main():
     </div>
 
     <div id="legend">
-        <b>Single Stair Benefit</b><br>
-        <span style="color: #e63946;">&#9632;</span> Eligible — B/C with -3 or -5, C1-2, RM-5<br>
+        <b style="font-size:14px;">Single Stair Benefit</b>
+        <div class="section-label">Can be fully residential</div>
+        <span style="color: #8bc34a;">&#9632;</span> 7 du/lot — RM-5, RM-5.5, B2-3<br>
+        <span style="color: #4caf50;">&#9632;</span> 10 du/lot — RM-6, RM-6.5<br>
+        <span style="color: #2e7d32;">&#9632;</span> 15 du/lot — B2-5<br>
+        <div class="section-label">Ground-floor commercial required</div>
+        <span style="color: #64b5f6;">&#9632;</span> 7 du/lot — B1-3, B3-3, C1-3, C2-3<br>
+        <span style="color: #1565c0;">&#9632;</span> 15 du/lot — B1-5, B3-5, C1-5, C2-5<br>
+        <div style="margin-top:4px;">
         <span style="color: #d3d3d3;">&#9632;</span> Other zoning<br>
         <span style="color: #264653;">- -</span> Ward boundaries
+        </div>
     </div>
 
     <script>
     (function() {{
-        // Wait for map to be ready
         var checkMap = setInterval(function() {{
             var mapEl = document.querySelector('.folium-map');
             if (!mapEl || !mapEl._leaflet_id) return;
             clearInterval(checkMap);
 
-            var map = mapEl._leaflet_map || null;
-            // Find the Leaflet map instance
+            var map = null;
             for (var key in window) {{
                 if (window[key] instanceof L.Map) {{
                     map = window[key];
@@ -136,9 +183,15 @@ def main():
             var wardsData = {json.dumps(wards_geojson)};
 
             var tierStyles = {{
-                'benefit': {{fillColor: '#e63946', color: '#e63946', weight: 0.5, fillOpacity: 0.6}},
+                'res_7':   {{fillColor: '#8bc34a', color: '#7cb342', weight: 0.5, fillOpacity: 0.65}},
+                'res_10':  {{fillColor: '#4caf50', color: '#43a047', weight: 0.5, fillOpacity: 0.65}},
+                'res_15':  {{fillColor: '#2e7d32', color: '#256427', weight: 0.5, fillOpacity: 0.65}},
+                'com_7':   {{fillColor: '#64b5f6', color: '#5a9fd4', weight: 0.5, fillOpacity: 0.65}},
+                'com_15':  {{fillColor: '#1565c0', color: '#0d47a1', weight: 0.5, fillOpacity: 0.65}},
                 'other':   {{fillColor: '#d3d3d3', color: '#aaaaaa', weight: 0.2, fillOpacity: 0.15}}
             }};
+
+            var tierOrder = {{'other': 0, 'res_7': 1, 'res_10': 2, 'res_15': 3, 'com_7': 4, 'com_15': 5}};
 
             var wardStyle = {{fillOpacity: 0, color: '#264653', weight: 1.5, dashArray: '5 3'}};
             var wardHighlightStyle = {{fillOpacity: 0.05, fillColor: '#264653', color: '#264653', weight: 2.5, dashArray: null}};
@@ -154,7 +207,6 @@ def main():
                 if (zoningLayer) map.removeLayer(zoningLayer);
                 if (wardsLayer) map.removeLayer(wardsLayer);
 
-                // Filter zoning features
                 var filteredZoning = {{type: 'FeatureCollection', features: []}};
                 if (selectedWard === 'all') {{
                     filteredZoning.features = zoningData.features;
@@ -164,20 +216,19 @@ def main():
                     }});
                 }}
 
-                // Sort: other first, then benefit on top
+                // Sort: other first, benefit tiers on top
                 filteredZoning.features.sort(function(a, b) {{
-                    var order = {{'other': 0, 'benefit': 1}};
-                    return (order[a.properties.benefit_tier] || 0) -
-                           (order[b.properties.benefit_tier] || 0);
+                    return (tierOrder[a.properties.benefit_tier] || 0) -
+                           (tierOrder[b.properties.benefit_tier] || 0);
                 }});
 
                 zoningLayer = L.geoJson(filteredZoning, {{
                     style: styleZoning,
                     onEachFeature: function(feature, layer) {{
                         var p = feature.properties;
-                        var tip = '<b>Zone:</b> ' + p.zone_class +
-                                  '<br><b>Benefit:</b> ' + p.benefit_tier +
-                                  '<br><b>Ward:</b> ' + p.ward;
+                        var tip = '<b>' + p.zone_class + '</b>' +
+                                  '<br>' + p.tier_label +
+                                  '<br>Ward ' + p.ward;
                         layer.bindTooltip(tip);
                     }}
                 }}).addTo(map);
@@ -190,7 +241,7 @@ def main():
                         return wardStyle;
                     }},
                     onEachFeature: function(feature, layer) {{
-                        layer.bindTooltip('<b>Ward:</b> ' + feature.properties.ward);
+                        layer.bindTooltip('<b>Ward ' + feature.properties.ward + '</b>');
                         layer.on('click', function() {{
                             var w = feature.properties.ward;
                             var sel = document.getElementById('ward-select');
@@ -214,7 +265,6 @@ def main():
                     }}).length;
                     info.innerHTML = benefit + ' of ' + total + ' districts benefit';
 
-                    // Zoom to ward
                     var wardFeature = wardsData.features.find(function(f) {{
                         return f.properties.ward === selectedWard;
                     }});
@@ -242,7 +292,6 @@ def main():
                 renderLayers(this.value);
             }});
 
-            // Initial render
             renderLayers('all');
         }}, 100);
     }})();
@@ -257,6 +306,15 @@ def main():
     benefit_count = len(gdf_with_ward[gdf_with_ward["benefit_tier"] != "other"])
     total = len(gdf_with_ward)
     print(f"  {benefit_count} of {total} districts highlighted as single-stair beneficiaries")
+
+    # Breakdown by tier
+    for tier, label in TIER_LABELS.items():
+        if tier == "other":
+            continue
+        count = len(gdf_with_ward[gdf_with_ward["benefit_tier"] == tier])
+        if count:
+            print(f"    {tier}: {count} ({label})")
+
     print(f"  Map saved to {out}")
 
 
