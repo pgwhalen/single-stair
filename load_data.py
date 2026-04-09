@@ -1,14 +1,19 @@
 """Load Chicago zoning CSV into PostGIS database."""
 
+import os
+
 import geopandas as gpd
 import pandas as pd
+from dotenv import load_dotenv
 from shapely import wkt
 from sqlalchemy import create_engine
 
 CSV_PATH = "data/Boundaries_-_Zoning_Districts_(current)_20260407.csv"
-DB_URL = "postgresql://pgwhalen@localhost:5432/urbanism"
 
 def main():
+    load_dotenv()
+    db_url = os.environ["DB_URL"]
+
     print("Reading CSV...")
     df = pd.read_csv(CSV_PATH)
     print(f"  {len(df)} rows")
@@ -23,7 +28,7 @@ def main():
     gdf.columns = [c.lower() for c in gdf.columns]
 
     print("Writing to PostGIS...")
-    engine = create_engine(DB_URL)
+    engine = create_engine(db_url)
     gdf.to_postgis("zoning_districts", engine, if_exists="replace", index=False)
 
     print("Done.")

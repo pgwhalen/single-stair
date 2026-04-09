@@ -30,17 +30,20 @@ Source: [Chicago Open Data - Zoning Districts](https://data.cityofchicago.org/Co
 Only needed if you want to use `--source postgres`:
 
 ```bash
+# Create a .env file with your connection string
+echo 'DB_URL=postgresql://user@localhost:5432/urbanism' > .env
+
 createdb urbanism
 python setup_db.py       # enables PostGIS extension
 python load_data.py      # loads CSV into zoning_districts table
 python visualize.py --source postgres
 ```
 
-Connection: `postgresql://pgwhalen@localhost:5432/urbanism`
+All database scripts read `DB_URL` from the environment (or `.env` file).
 
 ## Dependencies
 
-Python packages (in .venv): geopandas, pandas, folium, shapely
+Python packages (in .venv): geopandas, pandas, folium, shapely, python-dotenv
 
 For PostgreSQL support: psycopg2-binary, sqlalchemy, GeoAlchemy2
 System: PostgreSQL 17 (Homebrew), PostGIS extension

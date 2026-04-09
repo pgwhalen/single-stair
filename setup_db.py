@@ -4,18 +4,26 @@ Run this once before using load_data.py. Requires:
   createdb urbanism   (if the database doesn't exist yet)
 """
 
-from sqlalchemy import create_engine, text
+import os
 
-DB_URL = "postgresql://pgwhalen@localhost:5432/urbanism"
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
 
 
 def main():
+    load_dotenv()
+    db_url = os.environ.get("DB_URL")
+    if not db_url:
+        print("Error: DB_URL environment variable not set.")
+        print("Create a .env file with: DB_URL=postgresql://user@localhost:5432/urbanism")
+        return
+
     try:
-        engine = create_engine(DB_URL)
+        engine = create_engine(db_url)
         with engine.connect() as conn:
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis;"))
             conn.commit()
-        print("PostGIS extension ready in 'urbanism' database.")
+        print("PostGIS extension ready.")
         print("Next step: python load_data.py")
     except Exception as e:
         print(f"Error connecting to database: {e}")

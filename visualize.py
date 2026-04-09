@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import shutil
 
 import geopandas as gpd
@@ -12,7 +13,6 @@ from shapely import wkt
 DATA_DIR = "data"
 CSV_PATH = f"{DATA_DIR}/Boundaries_-_Zoning_Districts_(current)_20260407.csv"
 WARDS_GEOJSON = f"{DATA_DIR}/Boundaries_-_Wards_(2023-)_20260407.geojson"
-DB_URL = "postgresql://pgwhalen@localhost:5432/urbanism"
 
 # Single-stair benefit tiers, per STC feedback (Alex Montero / Steven):
 #
@@ -72,9 +72,12 @@ def load_from_file():
 
 def load_from_postgres():
     """Load zoning districts from PostGIS database."""
+    from dotenv import load_dotenv
     from sqlalchemy import create_engine
+    load_dotenv()
+    db_url = os.environ["DB_URL"]
     print("Loading from PostGIS...")
-    engine = create_engine(DB_URL)
+    engine = create_engine(db_url)
     gdf = gpd.read_postgis(
         "SELECT zone_class, shape_area, geometry FROM zoning_districts",
         engine, geom_col="geometry",
