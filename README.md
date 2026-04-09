@@ -5,7 +5,9 @@ Visualizes Chicago zoning districts that stand to benefit most from a "single st
 ## Quick Start
 
 ```bash
+python -m venv .venv
 source .venv/bin/activate
+pip install -r requirements.txt
 python visualize.py
 open single_stair_map.html
 ```
@@ -43,7 +45,13 @@ All database scripts read `DB_URL` from the environment (or `.env` file).
 
 ## Dependencies
 
-Python packages (in .venv): geopandas, pandas, folium, shapely, python-dotenv
+All Python dependencies are pinned in `requirements.txt`.
 
-For PostgreSQL support: psycopg2-binary, sqlalchemy, GeoAlchemy2
-System: PostgreSQL 17 (Homebrew), PostGIS extension
+```bash
+pip install -r requirements.txt          # install
+pip install some-new-package && pip freeze > requirements.txt  # add a package
+pip freeze > requirements.txt            # update after any pip install/upgrade
+```
+
+For PostgreSQL support: psycopg2-binary, sqlalchemy, GeoAlchemy2 (already included).
+System: PostgreSQL 17 (Homebrew), PostGIS extension.
