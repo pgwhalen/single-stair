@@ -19,7 +19,7 @@ No database required — reads directly from data files in `data/`.
 Source: [Chicago Open Data - Zoning Districts](https://data.cityofchicago.org/Community-Economic-Development/Boundaries-Zoning-Districts-current-/7cve-jgbp)
 
 - `data/Boundaries_-_Zoning_Districts_(current)_20260407.csv` — 14,874 zoning districts with WKT geometries
-- `data/Boundaries_-_Wards_(2023-)_20260407.geojson` — Ward boundaries
+- `data/Boundaries_-_Wards_(2023-)_20260407.geojson` — [Ward boundaries](https://data.cityofchicago.org/Facilities-Geographic-Boundaries/Boundaries-Wards-2023-Map/cdf7-bgn3)
 
 ## Scripts
 
