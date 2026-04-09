@@ -1,13 +1,18 @@
 """Visualize Chicago zoning districts that benefit from single-stair ordinance."""
 
+import argparse
 import json
+import shutil
 
 import geopandas as gpd
 import folium
-from sqlalchemy import create_engine
+import pandas as pd
+from shapely import wkt
 
+DATA_DIR = "data"
+CSV_PATH = f"{DATA_DIR}/Boundaries_-_Zoning_Districts_(current)_20260407.csv"
+WARDS_GEOJSON = f"{DATA_DIR}/Boundaries_-_Wards_(2023-)_20260407.geojson"
 DB_URL = "postgresql://pgwhalen@localhost:5432/urbanism"
-WARDS_GEOJSON = "Boundaries_-_Wards_(2023-)_20260407.geojson"
 
 # Single-stair benefit tiers, per STC feedback (Alex Montero / Steven):
 #
@@ -53,7 +58,21 @@ def classify(zone_class):
     return TIER_MAP.get(zone_class, "other")
 
 
-def main():
+def load_from_file():
+    """Load zoning districts directly from CSV (no database required)."""
+    print(f"Loading from {CSV_PATH}...")
+    df = pd.read_csv(CSV_PATH)
+    df["geometry"] = df["the_geom"].apply(wkt.loads)
+    gdf = gpd.GeoDataFrame(df.drop(columns=["the_geom"]), geometry="geometry", crs="EPSG:4326")
+    gdf.columns = [c.lower() for c in gdf.columns]
+    gdf = gdf[["zone_class", "shape_area", "geometry"]]
+    print(f"  {len(gdf)} districts loaded")
+    return gdf
+
+
+def load_from_postgres():
+    """Load zoning districts from PostGIS database."""
+    from sqlalchemy import create_engine
     print("Loading from PostGIS...")
     engine = create_engine(DB_URL)
     gdf = gpd.read_postgis(
@@ -61,9 +80,24 @@ def main():
         engine, geom_col="geometry",
     )
     print(f"  {len(gdf)} districts loaded (SRID: {gdf.crs.to_epsg()})")
-
     # Reproject from EPSG:3435 (IL State Plane) to EPSG:4326 (lat/lon) for web map
     gdf = gdf.to_crs(epsg=4326)
+    return gdf
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Generate single-stair zoning benefit map.")
+    parser.add_argument(
+        "--source", choices=["file", "postgres"], default="file",
+        help="Data source: 'file' reads CSV directly (default), 'postgres' reads from PostGIS",
+    )
+    args = parser.parse_args()
+
+    if args.source == "postgres":
+        gdf = load_from_postgres()
+    else:
+        gdf = load_from_file()
+
     gdf["benefit_tier"] = gdf["zone_class"].apply(classify)
 
     print("Loading ward boundaries...")
@@ -389,7 +423,8 @@ def main():
         if count:
             print(f"    {tier}: {count} ({label})")
 
-    print(f"  Map saved to {out}")
+    shutil.copy(out, "index.html")
+    print(f"  Map saved to {out} (and index.html)")
 
 
 if __name__ == "__main__":

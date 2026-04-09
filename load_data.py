@@ -5,7 +5,7 @@ import pandas as pd
 from shapely import wkt
 from sqlalchemy import create_engine
 
-CSV_PATH = "../Boundaries_-_Zoning_Districts_(current)_20260407.csv"
+CSV_PATH = "data/Boundaries_-_Zoning_Districts_(current)_20260407.csv"
 DB_URL = "postgresql://pgwhalen@localhost:5432/urbanism"
 
 def main():

@@ -2,23 +2,45 @@
 
 Visualizes Chicago zoning districts that stand to benefit most from a "single stair" building ordinance — which allows buildings with a single staircase (common in European construction), enabling more efficient use of smaller lots for mid-rise residential and mixed-use development.
 
-## Setup
+## Quick Start
 
 ```bash
-# Activate virtual environment
 source .venv/bin/activate
-
-# Database: PostgreSQL 17 with PostGIS, database "urbanism"
-# Connection: postgresql://pgwhalen@localhost:5432/urbanism
-# Table: zoning_districts (14,874 rows)
+python visualize.py
+open single_stair_map.html
 ```
+
+No database required — reads directly from data files in `data/`.
+
+## Data
+
+Source: [Chicago Open Data - Zoning Districts](https://data.cityofchicago.org/Community-Economic-Development/Boundaries-Zoning-Districts-current-/7cve-jgbp)
+
+- `data/Boundaries_-_Zoning_Districts_(current)_20260407.csv` — 14,874 zoning districts with WKT geometries
+- `data/Boundaries_-_Wards_(2023-)_20260407.geojson` — Ward boundaries
 
 ## Scripts
 
-- **load_data.py** — Reads `Boundaries_-_Zoning_Districts_(current)_20260407.csv` (Chicago open data), parses WKT geometries, and loads into PostGIS table `zoning_districts`.
-- **visualize.py** — Queries PostGIS, classifies zones by single-stair benefit tier, outputs `single_stair_map.html` (interactive Folium map).
+- **visualize.py** — Classifies zones by single-stair benefit tier, outputs `single_stair_map.html` (interactive Folium map). By default reads from CSV; use `--source postgres` to read from PostGIS instead.
+- **load_data.py** — Parses the CSV and loads into PostGIS table `zoning_districts`.
+- **setup_db.py** — Creates the PostGIS extension in the `urbanism` database (run once before `load_data.py`).
+
+## PostgreSQL Setup (Optional)
+
+Only needed if you want to use `--source postgres`:
+
+```bash
+createdb urbanism
+python setup_db.py       # enables PostGIS extension
+python load_data.py      # loads CSV into zoning_districts table
+python visualize.py --source postgres
+```
+
+Connection: `postgresql://pgwhalen@localhost:5432/urbanism`
 
 ## Dependencies
 
-Python packages (in .venv): geopandas, psycopg2-binary, sqlalchemy, folium, shapely, matplotlib, GeoAlchemy2
+Python packages (in .venv): geopandas, pandas, folium, shapely
+
+For PostgreSQL support: psycopg2-binary, sqlalchemy, GeoAlchemy2
 System: PostgreSQL 17 (Homebrew), PostGIS extension
