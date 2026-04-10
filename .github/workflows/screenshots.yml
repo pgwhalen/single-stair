@@ -1,0 +1,34 @@
+name: Generate Ward Screenshots
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install --with-deps chromium
+
+      - name: Generate map
+        run: python visualize.py
+
+      - name: Export screenshots
+        run: python export.py
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: screenshots-${{ github.sha }}
+          name: Ward Screenshots (${{ github.sha }})
+          files: ward_screenshots.zip
+          make_latest: true
