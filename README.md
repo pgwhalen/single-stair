@@ -24,8 +24,37 @@ Both files are from Chicago Open Data:
 ## Scripts
 
 - **visualize.py** — Classifies zones by single-stair benefit tier, outputs `single_stair_map.html` (interactive Folium map). By default reads from CSV; use `--source postgres` to read from PostGIS instead.
+- **export.py** — Takes high-res screenshots of every ward and the full city from the map, packages them into `ward_screenshots.zip`. Requires Playwright (see below).
 - **load_data.py** — Parses the CSV and loads into PostGIS table `zoning_districts`.
 - **setup_db.py** — Creates the PostGIS extension in the `urbanism` database (run once before `load_data.py`).
+
+## Exporting Ward Screenshots
+
+`export.py` opens the map in headless Chromium via Playwright, selects each ward in the dropdown, and captures a PNG screenshot. The output is a ZIP containing:
+
+- `all_wards.png` — High-res full city view (~9.6 MB, tightly cropped to Chicago)
+- `ward_01.png` through `ward_50.png` — Each ward zoomed in with the legend visible
+- `single_stair_map.html` — The interactive map itself
+
+```bash
+# First-time setup (after pip install -r requirements.txt)
+playwright install chromium
+
+# Generate all screenshots
+python export.py
+
+# Export just a few wards (for testing)
+python export.py --wards 1,14,42
+
+# Other options
+python export.py --format jpeg          # JPEG instead of PNG
+python export.py --output-zip out.zip   # custom ZIP path
+python export.py --output-dir images    # custom screenshot directory
+```
+
+### Pre-built downloads
+
+Every push to `main` triggers a GitHub Action that generates the screenshots automatically. Download the latest `ward_screenshots.zip` from the [Releases page](../../releases/latest).
 
 ## PostgreSQL Setup (Optional)
 
