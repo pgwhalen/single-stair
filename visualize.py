@@ -45,11 +45,11 @@ TIER_MAP = {
 }
 
 TIER_LABELS = {
-    "res_7":  "Fully residential — 7 du/lot",
-    "res_10": "Fully residential — 10 du/lot",
-    "res_15": "Fully residential — 15 du/lot",
-    "com_7":  "Ground-floor commercial — 7 du/lot",
-    "com_15": "Ground-floor commercial — 15 du/lot",
+    "res_7":  "Fully residential — 7 du/sl",
+    "res_10": "Fully residential — 10 du/sl",
+    "res_15": "Fully residential — 15 du/sl",
+    "com_7":  "Ground-floor commercial — 7 du/sl",
+    "com_15": "Ground-floor commercial — 15 du/sl",
     "other":  "Other zoning",
 }
 
@@ -200,13 +200,14 @@ def main():
 
     <div id="legend">
         <b style="font-size:14px;">Single Stair Benefit</b>
+        <div style="font-size:10px; color:#777; margin-top:2px; margin-bottom:4px;">du/sl = dwelling units per standard lot (25 ft × 125 ft = 3,125 sf)</div>
         <div class="section-label">Can be fully residential</div>
-        <span style="color: #8bc34a;">&#9632;</span> 7 du/lot — RM-5, RM-5.5, B2-3<br>
-        <span style="color: #4caf50;">&#9632;</span> 10 du/lot — RM-6, RM-6.5<br>
-        <span style="color: #2e7d32;">&#9632;</span> 15 du/lot — B2-5<br>
+        <span style="color: #8bc34a;">&#9632;</span> 7 du/sl — RM-5, RM-5.5, B2-3<br>
+        <span style="color: #4caf50;">&#9632;</span> 10 du/sl — RM-6, RM-6.5<br>
+        <span style="color: #2e7d32;">&#9632;</span> 15 du/sl — B2-5<br>
         <div class="section-label">Ground-floor commercial required</div>
-        <span style="color: #64b5f6;">&#9632;</span> 7 du/lot — B1-3, B3-3, C1-3, C2-3<br>
-        <span style="color: #1565c0;">&#9632;</span> 15 du/lot — B1-5, B3-5, C1-5, C2-5<br>
+        <span style="color: #64b5f6;">&#9632;</span> 7 du/sl — B1-3, B3-3, C1-3, C2-3<br>
+        <span style="color: #1565c0;">&#9632;</span> 15 du/sl — B1-5, B3-5, C1-5, C2-5<br>
         <div style="margin-top:4px;">
         <span style="color: #d3d3d3;">&#9632;</span> Other zoning<br>
         <span style="color: #264653;">- -</span> Ward boundaries
